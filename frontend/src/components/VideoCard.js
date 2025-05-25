@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Button, ButtonGroup, Row, Col, Image } from 'react-bootstrap';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Button, ButtonGroup, Row, Col, Image, Form, InputGroup } from 'react-bootstrap';
 import { getVideoScreenshots, moveFile, skipFile, prependHyphen } from '../api/api';
 import { FaFolder, FaForward, FaUndo, FaMinus } from 'react-icons/fa';
 
@@ -8,6 +8,8 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
   const [loading, setLoading] = useState(false);
   const [screenshotsLoading, setScreenshotsLoading] = useState(true);
   const [prependHyphenBeforeMove, setPrependHyphenBeforeMove] = useState(false);
+  const [shorthandInput, setShorthandInput] = useState('');
+  const shorthandInputRef = useRef(null);
 
   // Load screenshots when component mounts
   useEffect(() => {
@@ -29,6 +31,13 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
     loadScreenshots();
   }, [video.path, onError]);
 
+  // Focus the input field when the video changes
+  useEffect(() => {
+    if (shorthandInputRef.current) {
+      shorthandInputRef.current.focus();
+    }
+  }, [video]);
+
 
   const handleMoveToFolder = async (destinationPath) => {
     try {
@@ -36,6 +45,13 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       await moveFile(video.path, destinationPath, prependHyphenBeforeMove);
       setLoading(false);
       onOperationComplete && onOperationComplete();
+
+      // Focus the input field after operation completes
+      setTimeout(() => {
+        if (shorthandInputRef.current) {
+          shorthandInputRef.current.focus();
+        }
+      }, 0);
     } catch (error) {
       console.error('Error moving file:', error);
       setLoading(false);
@@ -49,6 +65,13 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       await skipFile(video.path);
       setLoading(false);
       onOperationComplete && onOperationComplete();
+
+      // Focus the input field after operation completes
+      setTimeout(() => {
+        if (shorthandInputRef.current) {
+          shorthandInputRef.current.focus();
+        }
+      }, 0);
     } catch (error) {
       console.error('Error skipping file:', error);
       setLoading(false);
@@ -62,10 +85,59 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       await prependHyphen(video.path);
       setLoading(false);
       onOperationComplete && onOperationComplete();
+
+      // Focus the input field after operation completes
+      setTimeout(() => {
+        if (shorthandInputRef.current) {
+          shorthandInputRef.current.focus();
+        }
+      }, 0);
     } catch (error) {
       console.error('Error prepending hyphen:', error);
       setLoading(false);
       onError && onError(`Error prepending hyphen: ${error.message}`);
+    }
+  };
+
+  const handleShorthandSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!shorthandInput.trim()) return;
+
+    // Check if the shorthand exists in the destination folders
+    const shorthand = shorthandInput.trim();
+    let shouldPrependHyphen = prependHyphenBeforeMove;
+
+    // If shorthand starts with a hyphen, remove it and set the flag to prepend hyphen
+    if (shorthand.startsWith('-')) {
+      shouldPrependHyphen = true;
+    }
+
+    // Remove any leading hyphen for lookup
+    const lookupShorthand = shorthand.startsWith('-') ? shorthand.substring(1) : shorthand;
+
+    if (destinationFolders[lookupShorthand]) {
+      try {
+        setLoading(true);
+        const destinationPath = destinationFolders[lookupShorthand] + '/' + video.name + video.extension;
+        await moveFile(video.path, destinationPath, shouldPrependHyphen);
+        setLoading(false);
+        setShorthandInput(''); // Clear the input
+        onOperationComplete && onOperationComplete();
+
+        // Focus the input field after operation completes
+        setTimeout(() => {
+          if (shorthandInputRef.current) {
+            shorthandInputRef.current.focus();
+          }
+        }, 0);
+      } catch (error) {
+        console.error('Error moving file:', error);
+        setLoading(false);
+        onError && onError(`Error moving file: ${error.message}`);
+      }
+    } else {
+      onError && onError(`Unknown destination shorthand: ${shorthand}`);
     }
   };
 
@@ -123,6 +195,31 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
                 </label>
               </div>
             </div>
+
+            <Form onSubmit={handleShorthandSubmit} className="mb-3">
+              <InputGroup>
+                <Form.Control
+                  type="text"
+                  placeholder="Type destination shorthand and press Enter (e.g., 'A' or '-A')"
+                  value={shorthandInput}
+                  onChange={(e) => setShorthandInput(e.target.value)}
+                  disabled={loading}
+                  ref={shorthandInputRef}
+                  autoFocus
+                />
+                <Button 
+                  variant="primary" 
+                  type="submit"
+                  disabled={loading || !shorthandInput.trim()}
+                >
+                  Move
+                </Button>
+              </InputGroup>
+              <Form.Text className="text-muted">
+                Type shorthand and press Enter. Add '-' prefix to prepend hyphen to filename.
+              </Form.Text>
+            </Form>
+
             <div className="destination-buttons">
               {Object.entries(destinationFolders).map(([shorthand, path]) => (
                 <Button
