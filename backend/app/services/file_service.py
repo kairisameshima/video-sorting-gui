@@ -1,23 +1,30 @@
 import os
 import shutil
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import asyncio
 import ffmpeg
 import logging
 
-from ..core.config import TEMP_DIR, VIDEO_EXTENSIONS
-from ..models.video import VideoFile, FileOperation, FileOperationResult, ProgressStatus, SourceFolder
+from ..core.config import TEMP_DIR, VIDEO_EXTENSIONS, LOG_FILE
+from ..models.video import VideoFile, FileOperation, FileOperationResult, SourceFolder
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Add file handler for logging file operations
+file_handler = logging.FileHandler(LOG_FILE)
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+
 # In-memory storage for operation history and skipped files
 operation_history: List[FileOperation] = []
 skipped_files: List[str] = []
-operation_progress: Dict[str, ProgressStatus] = {}
 
 
 def is_video_file(file_path: Path) -> bool:
@@ -33,6 +40,11 @@ def get_video_files(folder_path: str) -> List[VideoFile]:
 
     video_files = []
     for file_path in folder.iterdir():
+        # Skip files that start with "._"
+        if file_path.name.startswith("._"):
+            logger.info(f"Skipping file that starts with '._': {file_path.name}")
+            continue
+
         if file_path.is_file() and is_video_file(file_path):
             video_files.append(VideoFile(
                 path=str(file_path),
@@ -44,8 +56,8 @@ def get_video_files(folder_path: str) -> List[VideoFile]:
     return video_files
 
 
-async def move_file(source_path: str, destination_path: str) -> FileOperationResult:
-    """Move a file from source to destination with progress tracking."""
+async def move_file(source_path: str, destination_path: str, prepend_hyphen_first: bool = False) -> FileOperationResult:
+    """Move a file from source to destination. Optionally prepend a hyphen before moving."""
     operation_id = str(uuid.uuid4())
     source = Path(source_path)
     destination = Path(destination_path)
@@ -53,41 +65,23 @@ async def move_file(source_path: str, destination_path: str) -> FileOperationRes
     # Create destination directory if it doesn't exist
     destination.parent.mkdir(parents=True, exist_ok=True)
 
+    # If prepend_hyphen_first is True, modify the destination filename
+    if prepend_hyphen_first:
+        destination = destination.parent / f"-{destination.name}"
+        logger.info(f"Will prepend hyphen before moving: {destination.name}")
+
     operation = FileOperation(
         source_path=source_path,
-        destination_path=destination_path,
+        destination_path=str(destination),
         operation_type="move"
     )
 
     try:
-        # Start progress tracking
-        operation_progress[operation_id] = ProgressStatus(
-            operation_id=operation_id,
-            progress=0.0,
-            status="in_progress",
-            message=f"Moving {source.name} to {destination.parent}"
-        )
+        # Log the file movement operation
+        logger.info(f"Moving file: {source} -> {destination}")
 
-        # For large files, we'll copy with progress tracking and then delete the original
-        total_size = source.stat().st_size
-        copied_size = 0
-
-        with open(source, 'rb') as src, open(destination, 'wb') as dst:
-            while True:
-                # Read in chunks of 1MB
-                chunk = src.read(1024 * 1024)
-                if not chunk:
-                    break
-
-                dst.write(chunk)
-                copied_size += len(chunk)
-
-                # Update progress
-                progress = min(copied_size / total_size, 1.0)
-                operation_progress[operation_id].progress = progress
-
-                # Allow other tasks to run
-                await asyncio.sleep(0.01)
+        # For large files, we'll copy and then delete the original
+        shutil.copy2(source, destination)
 
         # Delete the original file
         os.remove(source)
@@ -95,10 +89,8 @@ async def move_file(source_path: str, destination_path: str) -> FileOperationRes
         # Update operation history
         operation_history.append(operation)
 
-        # Update progress status
-        operation_progress[operation_id].progress = 1.0
-        operation_progress[operation_id].status = "completed"
-        operation_progress[operation_id].message = f"Moved {source.name} to {destination.parent}"
+        # Log successful completion
+        logger.info(f"File moved successfully: {source} -> {destination}")
 
         return FileOperationResult(
             success=True,
@@ -107,11 +99,7 @@ async def move_file(source_path: str, destination_path: str) -> FileOperationRes
         )
 
     except Exception as e:
-        logger.error(f"Error moving file: {str(e)}")
-
-        # Update progress status
-        operation_progress[operation_id].status = "failed"
-        operation_progress[operation_id].message = f"Failed to move {source.name}: {str(e)}"
+        logger.error(f"Error moving file: {source} -> {destination}: {str(e)}")
 
         return FileOperationResult(
             success=False,
@@ -131,6 +119,8 @@ def skip_file(file_path: str) -> FileOperationResult:
         # Add to skipped files if not already there
         if file_path not in skipped_files:
             skipped_files.append(file_path)
+            # Log the skip operation
+            logger.info(f"Skipping file: {file_path}")
 
         # Update operation history
         operation_history.append(operation)
@@ -142,7 +132,7 @@ def skip_file(file_path: str) -> FileOperationResult:
         )
 
     except Exception as e:
-        logger.error(f"Error skipping file: {str(e)}")
+        logger.error(f"Error skipping file: {file_path}: {str(e)}")
         return FileOperationResult(
             success=False,
             message=f"Error skipping file: {str(e)}",
@@ -155,6 +145,7 @@ def prepend_hyphen(file_path: str) -> FileOperationResult:
     source = Path(file_path)
 
     if not source.exists():
+        logger.error(f"File does not exist: {file_path}")
         return FileOperationResult(
             success=False,
             message=f"File {file_path} does not exist",
@@ -174,11 +165,17 @@ def prepend_hyphen(file_path: str) -> FileOperationResult:
     )
 
     try:
+        # Log the rename operation
+        logger.info(f"Renaming file: {source.name} -> {new_name}")
+
         # Rename the file
         source.rename(destination)
 
         # Update operation history
         operation_history.append(operation)
+
+        # Log successful completion
+        logger.info(f"File renamed successfully: {source.name} -> {new_name}")
 
         return FileOperationResult(
             success=True,
@@ -187,7 +184,7 @@ def prepend_hyphen(file_path: str) -> FileOperationResult:
         )
 
     except Exception as e:
-        logger.error(f"Error renaming file: {str(e)}")
+        logger.error(f"Error renaming file: {source.name} -> {new_name}: {str(e)}")
         return FileOperationResult(
             success=False,
             message=f"Error renaming file: {str(e)}",
@@ -198,9 +195,11 @@ def prepend_hyphen(file_path: str) -> FileOperationResult:
 def undo_last_operation() -> Optional[FileOperationResult]:
     """Undo the last file operation."""
     if not operation_history:
+        logger.info("No operations to undo")
         return None
 
     last_operation = operation_history.pop()
+    logger.info(f"Undoing last operation: {last_operation.operation_type} on {last_operation.source_path}")
 
     try:
         if last_operation.operation_type == "move":
@@ -211,8 +210,14 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             # Create parent directory if it doesn't exist
             destination.parent.mkdir(parents=True, exist_ok=True)
 
+            # Log the undo move operation
+            logger.info(f"Undoing move: {source} -> {destination}")
+
             # Move the file
             shutil.move(source, destination)
+
+            # Log successful completion
+            logger.info(f"File moved back successfully: {source} -> {destination}")
 
             return FileOperationResult(
                 success=True,
@@ -224,6 +229,8 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             # Remove from skipped files
             if last_operation.source_path in skipped_files:
                 skipped_files.remove(last_operation.source_path)
+                # Log the undo skip operation
+                logger.info(f"Undoing skip: Removed {last_operation.source_path} from skip list")
 
             return FileOperationResult(
                 success=True,
@@ -236,8 +243,14 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             source = Path(last_operation.destination_path)
             destination = Path(last_operation.source_path)
 
+            # Log the undo rename operation
+            logger.info(f"Undoing rename: {source.name} -> {destination.name}")
+
             # Rename the file
             source.rename(destination)
+
+            # Log successful completion
+            logger.info(f"File renamed back successfully: {source.name} -> {destination.name}")
 
             return FileOperationResult(
                 success=True,
@@ -246,6 +259,7 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             )
 
         else:
+            logger.error(f"Unknown operation type: {last_operation.operation_type}")
             return FileOperationResult(
                 success=False,
                 message=f"Unknown operation type: {last_operation.operation_type}",
@@ -253,7 +267,7 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             )
 
     except Exception as e:
-        logger.error(f"Error undoing operation: {str(e)}")
+        logger.error(f"Error undoing operation: {last_operation.operation_type} on {last_operation.source_path}: {str(e)}")
         # Put the operation back in history since it wasn't undone
         operation_history.append(last_operation)
 
@@ -264,9 +278,6 @@ def undo_last_operation() -> Optional[FileOperationResult]:
         )
 
 
-def get_operation_progress(operation_id: str) -> Optional[ProgressStatus]:
-    """Get the progress of a file operation."""
-    return operation_progress.get(operation_id)
 
 
 def get_common_directories() -> List[SourceFolder]:

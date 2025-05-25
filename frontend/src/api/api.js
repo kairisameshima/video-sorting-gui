@@ -29,12 +29,13 @@ export const setDestinationFolders = async (foldersMap) => {
   }
 };
 
-export const moveFile = async (sourcePath, destinationPath) => {
+export const moveFile = async (sourcePath, destinationPath, prependHyphenFirst = false) => {
   try {
     const response = await api.post('/move-file', {
       source_path: sourcePath,
       destination_path: destinationPath,
       operation_type: 'move',
+      prepend_hyphen_first: prependHyphenFirst,
     });
     return response.data;
   } catch (error) {
@@ -79,15 +80,6 @@ export const undoOperation = async () => {
   }
 };
 
-export const getOperationProgress = async (operationId) => {
-  try {
-    const response = await api.get(`/progress/${operationId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error getting operation progress:', error);
-    throw error;
-  }
-};
 
 export const getVideoScreenshots = async (videoPath, numScreenshots = 3) => {
   try {

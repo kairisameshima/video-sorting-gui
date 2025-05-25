@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, ButtonGroup, ProgressBar, Row, Col, Image } from 'react-bootstrap';
-import { getVideoScreenshots, moveFile, skipFile, prependHyphen, getOperationProgress } from '../api/api';
+import { Card, Button, ButtonGroup, Row, Col, Image } from 'react-bootstrap';
+import { getVideoScreenshots, moveFile, skipFile, prependHyphen } from '../api/api';
 import { FaFolder, FaForward, FaUndo, FaMinus } from 'react-icons/fa';
 
 const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) => {
   const [screenshots, setScreenshots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [screenshotsLoading, setScreenshotsLoading] = useState(true);
-  const [operationId, setOperationId] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [operationStatus, setOperationStatus] = useState(null);
+  const [prependHyphenBeforeMove, setPrependHyphenBeforeMove] = useState(false);
 
   // Load screenshots when component mounts
   useEffect(() => {
@@ -17,8 +15,8 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       try {
         setScreenshotsLoading(true);
         const result = await getVideoScreenshots(video.path);
-        if (result && result.screenshot_paths) {
-          setScreenshots(result.screenshot_paths);
+        if (result && result.screenshot_images) {
+          setScreenshots(result.screenshot_images);
         }
       } catch (error) {
         console.error('Error loading screenshots:', error);
@@ -31,55 +29,13 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
     loadScreenshots();
   }, [video.path, onError]);
 
-  // Poll for progress updates when an operation is in progress
-  useEffect(() => {
-    let interval;
-    
-    if (operationId) {
-      interval = setInterval(async () => {
-        try {
-          const progressData = await getOperationProgress(operationId);
-          if (progressData) {
-            setProgress(progressData.progress * 100);
-            setOperationStatus(progressData.status);
-            
-            if (progressData.status === 'completed' || progressData.status === 'failed') {
-              clearInterval(interval);
-              setLoading(false);
-              
-              if (progressData.status === 'completed') {
-                onOperationComplete && onOperationComplete();
-              } else {
-                onError && onError(progressData.message || 'Operation failed');
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching progress:', error);
-          clearInterval(interval);
-          setLoading(false);
-          onError && onError(`Error tracking progress: ${error.message}`);
-        }
-      }, 500);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [operationId, onOperationComplete, onError]);
 
   const handleMoveToFolder = async (destinationPath) => {
     try {
       setLoading(true);
-      const result = await moveFile(video.path, destinationPath);
-      if (result && result.operation) {
-        // Extract operation ID from the result if available
-        const opId = result.operation.operation_id || 'unknown';
-        setOperationId(opId);
-      } else {
-        setLoading(false);
-        onOperationComplete && onOperationComplete();
-      }
+      await moveFile(video.path, destinationPath, prependHyphenBeforeMove);
+      setLoading(false);
+      onOperationComplete && onOperationComplete();
     } catch (error) {
       console.error('Error moving file:', error);
       setLoading(false);
@@ -128,7 +84,7 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
         <Card.Subtitle className="mb-2 text-muted">
           {formatFileSize(video.size)}
         </Card.Subtitle>
-        
+
         {/* Screenshots */}
         <div className="screenshots-container">
           {screenshotsLoading ? (
@@ -137,7 +93,7 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
             screenshots.map((screenshot, index) => (
               <Image 
                 key={index}
-                src={`/static/${screenshot.split('/').pop()}`}
+                src={`data:image/jpeg;base64,${screenshot}`}
                 alt={`Screenshot ${index + 1}`}
                 className="screenshot"
                 thumbnail
@@ -147,57 +103,61 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
             <div className="text-center w-100 py-4">No screenshots available</div>
           )}
         </div>
-        
-        {/* Progress bar */}
-        {loading && (
-          <div className="progress-container">
-            <ProgressBar 
-              now={progress} 
-              label={`${Math.round(progress)}%`} 
-              variant={operationStatus === 'failed' ? 'danger' : 'primary'} 
-            />
-          </div>
-        )}
-        
+
+
         {/* Action buttons */}
         <div className="action-buttons">
-          <Row>
-            <Col>
-              <ButtonGroup className="me-2">
-                {Object.entries(destinationFolders).map(([shorthand, path]) => (
-                  <Button
-                    key={shorthand}
-                    variant="outline-primary"
-                    onClick={() => handleMoveToFolder(path + '/' + video.name + video.extension)}
-                    disabled={loading}
-                  >
-                    <FaFolder className="me-1" />
-                    {shorthand}
-                  </Button>
-                ))}
-              </ButtonGroup>
-            </Col>
-            <Col xs="auto">
-              <ButtonGroup>
-                <Button
-                  variant="outline-secondary"
-                  onClick={handleSkip}
+          <div className="mb-3">
+            <div className="d-flex align-items-center mb-2">
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="prependHyphenCheck"
+                  checked={prependHyphenBeforeMove}
+                  onChange={(e) => setPrependHyphenBeforeMove(e.target.checked)}
                   disabled={loading}
-                  title="Skip this file"
-                >
-                  <FaForward />
-                </Button>
+                />
+                <label className="form-check-label" htmlFor="prependHyphenCheck">
+                  Prepend hyphen before moving
+                </label>
+              </div>
+            </div>
+            <div className="destination-buttons">
+              {Object.entries(destinationFolders).map(([shorthand, path]) => (
                 <Button
-                  variant="outline-secondary"
-                  onClick={handlePrependHyphen}
+                  key={shorthand}
+                  variant="outline-primary"
+                  className="m-1"
+                  onClick={() => handleMoveToFolder(path + '/' + video.name + video.extension)}
                   disabled={loading}
-                  title="Prepend hyphen to filename"
                 >
-                  <FaMinus />
+                  <FaFolder className="me-1" />
+                  {shorthand}
                 </Button>
-              </ButtonGroup>
-            </Col>
-          </Row>
+              ))}
+            </div>
+          </div>
+          <div className="d-flex justify-content-end">
+            <ButtonGroup>
+              <Button
+                variant="outline-secondary"
+                onClick={handleSkip}
+                disabled={loading}
+                title="Skip this file"
+              >
+                <FaForward />
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={handlePrependHyphen}
+                disabled={loading}
+                title="Prepend hyphen to filename"
+              >
+                <FaMinus />
+              </Button>
+            </ButtonGroup>
+          </div>
         </div>
       </Card.Body>
     </Card>

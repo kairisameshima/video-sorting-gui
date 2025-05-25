@@ -17,6 +17,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 TEMP_DIR = BASE_DIR / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
+# Logs directory
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / "file_operations.log"
+
 # CORS configuration
 CORS_ORIGINS = [
     f"http://{os.getenv('FRONTEND_HOST', 'localhost')}:{os.getenv('FRONTEND_PORT', '3000')}",

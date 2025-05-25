@@ -37,6 +37,8 @@ class FileOperation(BaseModel):
     source_path: str
     destination_path: Optional[str] = None
     operation_type: str  # "move", "skip", "rename"
+    operation_id: Optional[str] = None
+    prepend_hyphen_first: bool = False  # Option to prepend hyphen before moving
 
 
 class FileOperationResult(BaseModel):
@@ -50,11 +52,3 @@ class VideoScreenshots(BaseModel):
     """Model representing screenshots of a video."""
     video_path: str
     screenshot_images: List[str]  # Base64-encoded image data
-
-
-class ProgressStatus(BaseModel):
-    """Model representing the progress of a file operation."""
-    operation_id: str
-    progress: float  # 0.0 to 1.0
-    status: str  # "in_progress", "completed", "failed"
-    message: Optional[str] = None

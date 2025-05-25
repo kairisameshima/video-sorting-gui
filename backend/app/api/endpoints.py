@@ -6,11 +6,11 @@ from pathlib import Path
 
 from ..models.video import (
     VideoFile, SourceFolder, DestinationFolders, 
-    FileOperation, FileOperationResult, VideoScreenshots, ProgressStatus
+    FileOperation, FileOperationResult, VideoScreenshots
 )
 from ..services.file_service import (
     get_video_files, move_file, skip_file, 
-    prepend_hyphen, undo_last_operation, get_operation_progress,
+    prepend_hyphen, undo_last_operation,
     get_common_directories
 )
 from ..services.video_service import generate_screenshots, cleanup_screenshots
@@ -38,12 +38,16 @@ async def set_destination_folders(folders: DestinationFolders):
 
 @router.post("/move-file", response_model=FileOperationResult)
 async def move_video_file(operation: FileOperation):
-    """Move a video file to a destination folder."""
+    """Move a video file to a destination folder. Optionally prepend a hyphen before moving."""
     if operation.operation_type != "move" or not operation.destination_path:
         raise HTTPException(status_code=400, detail="Invalid operation for move-file")
 
     try:
-        result = await move_file(operation.source_path, operation.destination_path)
+        result = await move_file(
+            operation.source_path, 
+            operation.destination_path, 
+            prepend_hyphen_first=operation.prepend_hyphen_first
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error moving file: {str(e)}")
@@ -87,13 +91,6 @@ async def undo_operation():
         raise HTTPException(status_code=500, detail=f"Error undoing operation: {str(e)}")
 
 
-@router.get("/progress/{operation_id}", response_model=Optional[ProgressStatus])
-async def get_progress(operation_id: str):
-    """Get the progress of a file operation."""
-    progress = get_operation_progress(operation_id)
-    if progress is None:
-        raise HTTPException(status_code=404, detail=f"Operation {operation_id} not found")
-    return progress
 
 
 @router.post("/screenshots", response_model=Optional[VideoScreenshots])

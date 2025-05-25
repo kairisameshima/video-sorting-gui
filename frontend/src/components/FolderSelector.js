@@ -56,14 +56,17 @@ const FolderSelector = ({ onFolderSelected }) => {
   const handleFileInputChange = (e) => {
     const files = e.target.files;
     if (files.length > 0) {
-      // Get the folder path from the first file's webkitRelativePath
-      // This gives us the folder name and the relative path within that folder
-      const folderName = files[0].webkitRelativePath.split('/')[0];
+      // Get the full relative path from the first file's webkitRelativePath
+      // This gives us more information than just the folder name
+      const fullPath = files[0].webkitRelativePath;
+
+      // Extract the folder path (everything up to the last slash)
+      const folderPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
 
       // For security reasons, browsers don't provide the full system path
-      // We'll use the folder name as the path, which the backend will resolve
-      // If you need the full path, you'll need to use a native app or Electron
-      setFolderPath(folderName);
+      // We'll use the complete relative path, which the backend will resolve
+      // If you need the absolute system path, you'll need to use a native app or Electron
+      setFolderPath(folderPath || fullPath.split('/')[0]);
 
       // Auto-submit the form after selecting a folder
       setTimeout(() => {

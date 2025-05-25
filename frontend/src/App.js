@@ -5,6 +5,7 @@ import DestinationFolders from './components/DestinationFolders';
 import VideoCard from './components/VideoCard';
 import { undoOperation } from './api/api';
 import { FaUndo } from 'react-icons/fa';
+import { defaultSortingPatterns } from './sortingPatterns';
 
 function App() {
   const [sourceFolder, setSourceFolder] = useState('');
@@ -20,18 +21,22 @@ function App() {
     setVideoFiles(videos);
     setError('');
     setSuccess(`Found ${videos.length} video files in ${folderPath}`);
-    
-    // If we already have destination folders set, we can consider setup complete
-    if (Object.keys(destinationFolders).length > 0) {
-      setSetupComplete(true);
+
+    // If we already have destination folders set, use them
+    // Otherwise, use the default sorting patterns
+    if (Object.keys(destinationFolders).length === 0) {
+      setDestinationFolders(defaultSortingPatterns);
     }
+
+    // Immediately go to the sorting page
+    setSetupComplete(true);
   };
 
   const handleFoldersSet = (folders) => {
     setDestinationFolders(folders);
     setError('');
     setSuccess('Destination folders saved successfully');
-    
+
     // If we already have a source folder with videos, we can consider setup complete
     if (videoFiles.length > 0) {
       setSetupComplete(true);
@@ -40,7 +45,7 @@ function App() {
 
   const handleOperationComplete = () => {
     setSuccess('Operation completed successfully');
-    
+
     // Move to the next video
     if (currentVideoIndex < videoFiles.length - 1) {
       setCurrentVideoIndex(currentVideoIndex + 1);
@@ -108,15 +113,15 @@ function App() {
                 <FaUndo className="me-1" /> Undo Last Operation
               </Button>
             </div>
-            
+
             <div className="mb-3">
               <strong>Source Folder:</strong> {sourceFolder}
             </div>
-            
+
             <div className="mb-3">
               <strong>Progress:</strong> {currentVideoIndex + 1} of {videoFiles.length} videos
             </div>
-            
+
             {currentVideo && (
               <VideoCard
                 video={currentVideo}

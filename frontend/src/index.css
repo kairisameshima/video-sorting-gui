@@ -39,15 +39,21 @@ code {
 .action-buttons {
   margin-top: 15px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+}
+
+.destination-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -0.25rem;
+}
+
+.destination-buttons .btn {
+  margin: 0.25rem;
 }
 
 .folder-selector {
   margin-bottom: 20px;
-}
-
-.progress-container {
-  margin-top: 10px;
 }
 
 .destination-folders {
