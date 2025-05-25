@@ -99,18 +99,13 @@ async def get_progress(operation_id: str):
 @router.post("/screenshots", response_model=Optional[VideoScreenshots])
 async def get_video_screenshots(
     video_path: str, 
-    num_screenshots: int = 3,
-    background_tasks: BackgroundTasks = None
+    num_screenshots: int = 3
 ):
     """Generate screenshots from a video file."""
     try:
         screenshots = await generate_screenshots(video_path, num_screenshots)
         if screenshots is None:
             raise HTTPException(status_code=404, detail=f"Could not generate screenshots for {video_path}")
-
-        # Add cleanup task to run after response is sent
-        if background_tasks:
-            background_tasks.add_task(cleanup_screenshots, screenshots.screenshot_paths)
 
         return screenshots
     except Exception as e:

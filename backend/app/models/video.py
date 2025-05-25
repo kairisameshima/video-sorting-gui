@@ -9,7 +9,7 @@ class VideoFile(BaseModel):
     name: str
     extension: str
     size: int
-    
+
     class Config:
         json_encoders = {
             Path: lambda v: str(v)
@@ -49,7 +49,7 @@ class FileOperationResult(BaseModel):
 class VideoScreenshots(BaseModel):
     """Model representing screenshots of a video."""
     video_path: str
-    screenshot_paths: List[str]
+    screenshot_images: List[str]  # Base64-encoded image data
 
 
 class ProgressStatus(BaseModel):
