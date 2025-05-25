@@ -9,6 +9,7 @@ class VideoFile(BaseModel):
     name: str
     extension: str
     size: int
+    timestamp: Optional[float] = None  # File modification time
 
     class Config:
         json_encoders = {

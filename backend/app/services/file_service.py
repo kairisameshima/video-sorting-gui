@@ -33,7 +33,7 @@ def is_video_file(file_path: Path) -> bool:
 
 
 def get_video_files(folder_path: str) -> List[VideoFile]:
-    """Get all video files in a folder."""
+    """Get all video files in a folder and sort them by modification time (newest first)."""
     folder = Path(folder_path)
     if not folder.exists() or not folder.is_dir():
         raise ValueError(f"Invalid folder path: {folder_path}")
@@ -46,12 +46,19 @@ def get_video_files(folder_path: str) -> List[VideoFile]:
             continue
 
         if file_path.is_file() and is_video_file(file_path):
+            # Get file modification time
+            mtime = file_path.stat().st_mtime
+
             video_files.append(VideoFile(
                 path=str(file_path),
                 name=file_path.stem,
                 extension=file_path.suffix,
-                size=file_path.stat().st_size
+                size=file_path.stat().st_size,
+                timestamp=mtime
             ))
+
+    # Sort videos by timestamp (newest first)
+    video_files.sort(key=lambda x: x.timestamp if x.timestamp is not None else 0, reverse=True)
 
     return video_files
 
