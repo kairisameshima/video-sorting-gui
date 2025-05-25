@@ -1,0 +1,74 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8f9fa;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.video-card {
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.video-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.screenshots-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.screenshot {
+  width: 32%;
+  height: auto;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.action-buttons {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.folder-selector {
+  margin-bottom: 20px;
+}
+
+.progress-container {
+  margin-top: 10px;
+}
+
+.destination-folders {
+  margin-bottom: 20px;
+}
+
+.app-header {
+  background-color: #343a40;
+  color: white;
+  padding: 20px 0;
+  margin-bottom: 30px;
+}
+
+.app-title {
+  font-weight: bold;
+}
+
+.app-footer {
+  margin-top: 50px;
+  padding: 20px 0;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e7e7e7;
+  text-align: center;
+}
