@@ -4,11 +4,12 @@ import tempfile
 import shutil
 from pathlib import Path
 import sys
+import logging
 
 # Add the parent directory to sys.path to import the app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.services.file_service import get_unique_filename, move_file, prepend_hyphen, undo_last_operation, operation_history
+from app.services.file_service import get_unique_filename, move_file, prepend_hyphen, undo_last_operation, operation_history, logger
 
 
 class TestGetUniqueFilename:
@@ -119,7 +120,7 @@ class TestMoveFile:
         }
 
     @pytest.mark.asyncio
-    async def test_move_file_with_conflict(self, setup_files):
+    async def test_move_file_with_conflict(self, setup_files, caplog):
         """Test moving a file when a file with the same name exists at the destination."""
         source_file = setup_files["source_file"]
         dest_dir = setup_files["dest_dir"]
@@ -128,15 +129,21 @@ class TestMoveFile:
         # Clear operation history before test
         operation_history.clear()
 
+        # Set log level to capture INFO messages
+        caplog.set_level(logging.INFO)
+
         result = await move_file(str(source_file), str(dest_file))
-        
+
         assert result.success
         assert not source_file.exists()
         assert (dest_dir / "file_3.txt").exists()
         assert "file_3.txt" in result.message
 
+        # Verify log message for file name conflict
+        assert "File with the same name exists, using unique name: file_3.txt" in caplog.text
+
     @pytest.mark.asyncio
-    async def test_move_file_with_prepend_hyphen_and_conflict(self, setup_files):
+    async def test_move_file_with_prepend_hyphen_and_conflict(self, setup_files, caplog):
         """Test moving a file with prepend_hyphen when a file with the same name exists."""
         source_file = setup_files["source_file"]
         dest_dir = setup_files["dest_dir"]
@@ -144,16 +151,23 @@ class TestMoveFile:
 
         # Create a file with hyphen
         (dest_dir / "-file.txt").touch()
-        
+
         # Clear operation history before test
         operation_history.clear()
 
+        # Set log level to capture INFO messages
+        caplog.set_level(logging.INFO)
+
         result = await move_file(str(source_file), str(dest_file), prepend_hyphen_first=True)
-        
+
         assert result.success
         assert not source_file.exists()
         assert (dest_dir / "-file_1.txt").exists()
         assert "-file_1.txt" in result.message
+
+        # Verify log messages for prepend hyphen and file name conflict
+        assert "Will prepend hyphen before moving: -file.txt" in caplog.text
+        assert "File with the same name exists, using unique name: -file_1.txt" in caplog.text
 
 
 class TestPrependHyphen:
@@ -183,19 +197,27 @@ class TestPrependHyphen:
             "test_file": test_file
         }
 
-    def test_prepend_hyphen_with_conflict(self, setup_files):
+    def test_prepend_hyphen_with_conflict(self, setup_files, caplog):
         """Test prepending a hyphen when a file with the same name exists."""
         test_file = setup_files["test_file"]
-        
+
         # Clear operation history before test
         operation_history.clear()
 
+        # Set log level to capture INFO messages
+        caplog.set_level(logging.INFO)
+
         result = prepend_hyphen(str(test_file))
-        
+
         assert result.success
         assert not test_file.exists()
         assert (test_file.parent / "-file_2.txt").exists()
         assert "-file_2.txt" in result.message
+
+        # Verify log messages for file name conflict
+        assert "File with the same name exists, using unique name: -file_2.txt" in caplog.text
+        assert "Renaming file: file.txt -> -file_2.txt" in caplog.text
+        assert "File renamed successfully: file.txt -> -file_2.txt" in caplog.text
 
 
 class TestUndoLastOperation:
@@ -228,7 +250,7 @@ class TestUndoLastOperation:
         }
 
     @pytest.mark.asyncio
-    async def test_undo_move_with_conflict(self, setup_files):
+    async def test_undo_move_with_conflict(self, setup_files, caplog):
         """Test undoing a move operation when a file with the same name exists at the original location."""
         source_file = setup_files["source_file"]
         dest_dir = setup_files["dest_dir"]
@@ -239,16 +261,27 @@ class TestUndoLastOperation:
 
         # Move the file
         await move_file(str(source_file), str(dest_file))
-        
+
         # Create a new file at the original location
         with open(source_file, "w") as f:
             f.write("new content")
-        
+
+        # Clear caplog before undo operation
+        caplog.clear()
+
+        # Set log level to capture INFO messages
+        caplog.set_level(logging.INFO)
+
         # Undo the move
         result = undo_last_operation()
-        
+
         assert result.success
         assert not dest_file.exists()
         assert source_file.exists()  # Original file still exists
         assert (setup_files["source_dir"] / "file_1.txt").exists()  # New file with _1 suffix
         assert "file_1.txt" in result.message
+
+        # Verify log messages for file name conflict during undo
+        assert "File with the same name exists at original location, using unique name: file_1.txt" in caplog.text
+        assert "Undoing move:" in caplog.text
+        assert "File moved back successfully:" in caplog.text
