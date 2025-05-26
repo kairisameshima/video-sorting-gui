@@ -106,4 +106,18 @@ export const getCommonDirectories = async () => {
   }
 };
 
+export const openVideoInNativePlayer = async (filePath) => {
+  try {
+    const response = await api.post('/open-video', null, {
+      params: {
+        file_path: filePath,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error opening video in native player:', error);
+    throw error;
+  }
+};
+
 export default api;

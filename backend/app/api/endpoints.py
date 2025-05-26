@@ -11,7 +11,7 @@ from ..models.video import (
 from ..services.file_service import (
     get_video_files, move_file, skip_file, 
     prepend_hyphen, undo_last_operation,
-    get_common_directories
+    get_common_directories, open_video_in_native_player
 )
 from ..services.video_service import generate_screenshots, cleanup_screenshots
 
@@ -116,3 +116,13 @@ async def get_directories():
         return get_common_directories()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting common directories: {str(e)}")
+
+
+@router.post("/open-video", response_model=FileOperationResult)
+async def open_video(file_path: str):
+    """Open a video file in the computer's native video player."""
+    try:
+        result = open_video_in_native_player(file_path)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error opening video: {str(e)}")

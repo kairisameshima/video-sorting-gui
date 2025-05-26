@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, ButtonGroup, Row, Col, Image, Form, InputGroup } from 'react-bootstrap';
-import { getVideoScreenshots, moveFile, skipFile, prependHyphen } from '../api/api';
-import { FaFolder, FaForward, FaUndo, FaMinus } from 'react-icons/fa';
+import { getVideoScreenshots, moveFile, skipFile, prependHyphen, openVideoInNativePlayer } from '../api/api';
+import { FaFolder, FaForward, FaUndo, FaMinus, FaPlay } from 'react-icons/fa';
 
 const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) => {
   const [screenshots, setScreenshots] = useState([]);
@@ -96,6 +96,19 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       console.error('Error prepending hyphen:', error);
       setLoading(false);
       onError && onError(`Error prepending hyphen: ${error.message}`);
+    }
+  };
+
+  const handleOpenInNativePlayer = async () => {
+    try {
+      setLoading(true);
+      await openVideoInNativePlayer(video.path);
+      setLoading(false);
+      // No need to call onOperationComplete here as we're not changing the current video
+    } catch (error) {
+      console.error('Error opening video in native player:', error);
+      setLoading(false);
+      onError && onError(`Error opening video in native player: ${error.message}`);
     }
   };
 
@@ -237,6 +250,14 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
           </div>
           <div className="d-flex justify-content-end">
             <ButtonGroup>
+              <Button
+                variant="outline-secondary"
+                onClick={handleOpenInNativePlayer}
+                disabled={loading}
+                title="Open in native video player"
+              >
+                <FaPlay />
+              </Button>
               <Button
                 variant="outline-secondary"
                 onClick={handleSkip}

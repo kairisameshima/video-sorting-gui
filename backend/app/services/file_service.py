@@ -8,6 +8,8 @@ import asyncio
 import ffmpeg
 import logging
 import re
+import subprocess
+import platform
 
 from ..core.config import TEMP_DIR, VIDEO_EXTENSIONS, LOG_FILE
 from ..models.video import VideoFile, FileOperation, FileOperationResult, SourceFolder
@@ -347,6 +349,56 @@ def get_unique_filename(destination: Path) -> Path:
     # Create new filename with incremented number
     new_filename = f"{base_stem}_{highest_num + 1}{suffix}"
     return destination.parent / new_filename
+
+
+def open_video_in_native_player(file_path: str) -> FileOperationResult:
+    """Open a video file in the computer's native video player."""
+    operation = FileOperation(
+        source_path=file_path,
+        operation_type="open"
+    )
+
+    try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            logger.error(f"File does not exist: {file_path}")
+            return FileOperationResult(
+                success=False,
+                message=f"File {file_path} does not exist",
+                operation=operation
+            )
+
+        # Determine the command to open the file based on the operating system
+        if platform.system() == "Darwin":  # macOS
+            cmd = ["open", file_path]
+        elif platform.system() == "Windows":
+            cmd = ["start", "", file_path]
+        else:  # Linux and other Unix-like systems
+            cmd = ["xdg-open", file_path]
+
+        # Log the operation
+        logger.info(f"Opening video in native player: {file_path}")
+
+        # Execute the command
+        if platform.system() == "Windows":
+            # Windows requires shell=True for the 'start' command
+            subprocess.Popen(cmd, shell=True)
+        else:
+            subprocess.Popen(cmd)
+
+        return FileOperationResult(
+            success=True,
+            message=f"Video opened in native player: {file_path}",
+            operation=operation
+        )
+
+    except Exception as e:
+        logger.error(f"Error opening video in native player: {file_path}: {str(e)}")
+        return FileOperationResult(
+            success=False,
+            message=f"Error opening video in native player: {str(e)}",
+            operation=operation
+        )
 
 
 def get_common_directories() -> List[SourceFolder]:
