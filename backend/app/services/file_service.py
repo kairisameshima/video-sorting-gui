@@ -7,6 +7,7 @@ from typing import List, Dict, Optional, Tuple
 import asyncio
 import ffmpeg
 import logging
+import re
 
 from ..core.config import TEMP_DIR, VIDEO_EXTENSIONS, LOG_FILE
 from ..models.video import VideoFile, FileOperation, FileOperationResult, SourceFolder
@@ -76,6 +77,12 @@ async def move_file(source_path: str, destination_path: str, prepend_hyphen_firs
     if prepend_hyphen_first:
         destination = destination.parent / f"-{destination.name}"
         logger.info(f"Will prepend hyphen before moving: {destination.name}")
+
+    # Check for filename conflicts and generate a unique filename if needed
+    original_destination = destination
+    destination = get_unique_filename(destination)
+    if destination != original_destination:
+        logger.info(f"File with the same name exists, using unique name: {destination.name}")
 
     operation = FileOperation(
         source_path=source_path,
@@ -165,6 +172,13 @@ def prepend_hyphen(file_path: str) -> FileOperationResult:
     new_name = f"-{source.name}"
     destination = source.parent / new_name
 
+    # Check for filename conflicts and generate a unique filename if needed
+    original_destination = destination
+    destination = get_unique_filename(destination)
+    if destination != original_destination:
+        logger.info(f"File with the same name exists, using unique name: {destination.name}")
+        new_name = destination.name  # Update new_name to match the actual destination filename
+
     operation = FileOperation(
         source_path=str(source),
         destination_path=str(destination),
@@ -217,6 +231,12 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             # Create parent directory if it doesn't exist
             destination.parent.mkdir(parents=True, exist_ok=True)
 
+            # Check for filename conflicts and generate a unique filename if needed
+            original_destination = destination
+            destination = get_unique_filename(destination)
+            if destination != original_destination:
+                logger.info(f"File with the same name exists at original location, using unique name: {destination.name}")
+
             # Log the undo move operation
             logger.info(f"Undoing move: {source} -> {destination}")
 
@@ -249,6 +269,12 @@ def undo_last_operation() -> Optional[FileOperationResult]:
             # Rename the file back
             source = Path(last_operation.destination_path)
             destination = Path(last_operation.source_path)
+
+            # Check for filename conflicts and generate a unique filename if needed
+            original_destination = destination
+            destination = get_unique_filename(destination)
+            if destination != original_destination:
+                logger.info(f"File with the same name exists at original location, using unique name: {destination.name}")
 
             # Log the undo rename operation
             logger.info(f"Undoing rename: {source.name} -> {destination.name}")
@@ -285,6 +311,42 @@ def undo_last_operation() -> Optional[FileOperationResult]:
         )
 
 
+
+
+def get_unique_filename(destination: Path) -> Path:
+    """
+    Generate a unique filename by appending _n to the filename if a file with the same name already exists.
+    Example: If 'file.txt', 'file_1.txt', and 'file_2.txt' exist, returns 'file_3.txt'.
+    """
+    if not destination.exists():
+        return destination
+
+    # Split the filename into stem and suffix
+    stem = destination.stem
+    suffix = destination.suffix
+
+    # Check if the stem already ends with _n pattern
+    base_stem = re.sub(r'_\d+$', '', stem)
+
+    # Find all existing files with the same base name pattern
+    pattern = f"{base_stem}(_\\d+)?{suffix}"
+    existing_files = [f.name for f in destination.parent.glob(f"{base_stem}*{suffix}") 
+                     if re.match(pattern, f.name)]
+
+    if not existing_files:
+        return destination
+
+    # Find the highest number in the existing files
+    highest_num = 0
+    for file in existing_files:
+        match = re.search(r'_(\d+)' + re.escape(suffix) + '$', file)
+        if match:
+            num = int(match.group(1))
+            highest_num = max(highest_num, num)
+
+    # Create new filename with incremented number
+    new_filename = f"{base_stem}_{highest_num + 1}{suffix}"
+    return destination.parent / new_filename
 
 
 def get_common_directories() -> List[SourceFolder]:
