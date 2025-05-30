@@ -3,6 +3,7 @@ import { Container, Row, Col, Alert, Button, Navbar } from 'react-bootstrap';
 import FolderSelector from './components/FolderSelector';
 import DestinationFolders from './components/DestinationFolders';
 import VideoCard from './components/VideoCard';
+import KeyboardMappingSelector from './components/KeyboardMappingSelector';
 import { undoOperation } from './api/api';
 import { FaUndo } from 'react-icons/fa';
 import { defaultSortingPatterns } from './sortingPatterns';
@@ -15,6 +16,7 @@ function App() {
   const [success, setSuccess] = useState('');
   const [setupComplete, setSetupComplete] = useState(false);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [keyboardMapping, setKeyboardMapping] = useState(null);
 
   const handleFolderSelected = (folderPath, videos) => {
     setSourceFolder(folderPath);
@@ -27,20 +29,34 @@ function App() {
     if (Object.keys(destinationFolders).length === 0) {
       setDestinationFolders(defaultSortingPatterns);
     }
-
-    // Immediately go to the sorting page
-    setSetupComplete(true);
   };
 
   const handleFoldersSet = (folders) => {
     setDestinationFolders(folders);
     setError('');
     setSuccess('Destination folders saved successfully');
+  };
 
-    // If we already have a source folder with videos, we can consider setup complete
-    if (videoFiles.length > 0) {
-      setSetupComplete(true);
+  const handleKeyboardMappingSelected = (mapping) => {
+    setKeyboardMapping(mapping);
+    setError('');
+    setSuccess('Keyboard mapping updated successfully');
+  };
+
+  const handleSetupComplete = () => {
+    if (!sourceFolder) {
+      setError('Please select a source folder');
+      return;
     }
+    if (Object.keys(destinationFolders).length === 0) {
+      setError('Please configure destination folders');
+      return;
+    }
+    if (!keyboardMapping) {
+      setError('Please select a keyboard mapping');
+      return;
+    }
+    setSetupComplete(true);
   };
 
   const handleOperationComplete = () => {
@@ -97,14 +113,33 @@ function App() {
         )}
 
         {!setupComplete ? (
-          <Row>
-            <Col md={6}>
-              <FolderSelector onFolderSelected={handleFolderSelected} />
-            </Col>
-            <Col md={6}>
-              <DestinationFolders onFoldersSet={handleFoldersSet} />
-            </Col>
-          </Row>
+          <>
+            <Row>
+              <Col md={6}>
+                <FolderSelector onFolderSelected={handleFolderSelected} />
+              </Col>
+              <Col md={6}>
+                <DestinationFolders onFoldersSet={handleFoldersSet} />
+              </Col>
+            </Row>
+            <Row className="mt-3">
+              <Col md={12}>
+                <KeyboardMappingSelector onMappingSelected={handleKeyboardMappingSelected} />
+              </Col>
+            </Row>
+            <Row className="mt-3">
+              <Col className="text-center">
+                <Button 
+                  variant="primary" 
+                  size="lg"
+                  onClick={handleSetupComplete}
+                  disabled={!sourceFolder || Object.keys(destinationFolders).length === 0 || !keyboardMapping}
+                >
+                  Start Sorting
+                </Button>
+              </Col>
+            </Row>
+          </>
         ) : (
           <div>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -128,6 +163,7 @@ function App() {
                 destinationFolders={destinationFolders}
                 onOperationComplete={handleOperationComplete}
                 onError={handleError}
+                keyboardMapping={keyboardMapping}
               />
             )}
           </div>

@@ -3,7 +3,7 @@ import { Card, Button, ButtonGroup, Row, Col, Image, Form, InputGroup } from 're
 import { getVideoScreenshots, moveFile, skipFile, prependHyphen, openVideoInNativePlayer } from '../api/api';
 import { FaFolder, FaForward, FaUndo, FaMinus, FaPlay } from 'react-icons/fa';
 
-const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) => {
+const VideoCard = ({ video, destinationFolders, onOperationComplete, onError, keyboardMapping }) => {
   const [screenshots, setScreenshots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [screenshotsLoading, setScreenshotsLoading] = useState(true);
@@ -31,13 +31,56 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
     loadScreenshots();
   }, [video.path, onError]);
 
-  // Focus the input field when the video changes
+  // Handle keyboard shortcuts
   useEffect(() => {
-    if (shorthandInputRef.current) {
-      shorthandInputRef.current.focus();
-    }
-  }, [video]);
+    if (!keyboardMapping) return;
 
+    const handleKeyPress = async (event) => {
+      if (loading) return;
+
+      // Convert key combination to string format (e.g., "shift+a")
+      let keyCombo = '';
+      if (event.shiftKey) keyCombo += 'shift+';
+      if (event.ctrlKey) keyCombo += 'ctrl+';
+      if (event.altKey) keyCombo += 'alt+';
+      keyCombo += event.key.toLowerCase();
+
+      // Check folder shortcuts
+      const folderMappings = keyboardMapping.mappings.moveToFolder;
+      if (folderMappings[keyCombo]) {
+        const folderName = folderMappings[keyCombo];
+        const destinationPath = Object.entries(destinationFolders).find(
+          ([_, name]) => name === folderName
+        );
+        if (destinationPath) {
+          event.preventDefault();
+          await handleMoveToFolder(destinationPath[1] + '/' + video.name + video.extension);
+        }
+      }
+
+      // Check action shortcuts
+      const actionMappings = keyboardMapping.mappings.actions;
+      if (actionMappings[keyCombo]) {
+        event.preventDefault();
+        switch (actionMappings[keyCombo]) {
+          case 'Skip video':
+            await handleSkip();
+            break;
+          case 'Prepend hyphen':
+            await handlePrependHyphen();
+            break;
+          case 'Play in native player':
+            await handleOpenInNativePlayer();
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [keyboardMapping, loading, video, destinationFolders]);
 
   const handleMoveToFolder = async (destinationPath) => {
     try {
@@ -104,7 +147,6 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
       setLoading(true);
       await openVideoInNativePlayer(video.path);
       setLoading(false);
-      // No need to call onOperationComplete here as we're not changing the current video
     } catch (error) {
       console.error('Error opening video in native player:', error);
       setLoading(false);
@@ -277,6 +319,32 @@ const VideoCard = ({ video, destinationFolders, onOperationComplete, onError }) 
             </ButtonGroup>
           </div>
         </div>
+
+        {keyboardMapping && (
+          <div className="keyboard-shortcuts mt-3">
+            <h6>Keyboard Shortcuts</h6>
+            <small className="text-muted">
+              <Row>
+                <Col md={6}>
+                  <strong>Folder Shortcuts:</strong>
+                  <ul className="list-unstyled">
+                    {Object.entries(keyboardMapping.mappings.moveToFolder).map(([key, folder]) => (
+                      <li key={key}>{key} - Move to {folder}</li>
+                    ))}
+                  </ul>
+                </Col>
+                <Col md={6}>
+                  <strong>Action Shortcuts:</strong>
+                  <ul className="list-unstyled">
+                    {Object.entries(keyboardMapping.mappings.actions).map(([key, action]) => (
+                      <li key={key}>{key} - {action}</li>
+                    ))}
+                  </ul>
+                </Col>
+              </Row>
+            </small>
+          </div>
+        )}
       </Card.Body>
     </Card>
   );
